@@ -53,7 +53,16 @@ python3 -c "
 import json
 markets = json.load(open('$MARKETS_FILE'))
 for m in markets:
-    resolves = m.get('resolves', f'{m[\"duration_days\"]} days')
+# Evaluate a fallback only when the optional human-readable label is absent.
+    resolves = m.get('resolves')
+    if resolves is None:
+        days = m.get('days')
+        if days is None:
+            seconds = m.get('duration_secs')
+            if seconds is None:
+                raise SystemExit('Market {}: missing days and duration_secs'.format(m.get('id', '?')))
+            days = seconds // 86400
+        resolves = str(days) + ' days'
     print(f'  [{m[\"id\"]}] {m[\"category\"]:15} Resolves: {resolves}')
     print(f'       {m[\"question\"][:75]}')
     print()
@@ -87,10 +96,24 @@ FAILED=0
 python3 -c "
 import json
 markets = json.load(open('$MARKETS_FILE'))
+# Validate every entry before streaming any market-creation work to mainnet.
+rows = []
 for m in markets:
-    secs = m.get('duration_secs', m['duration_days'] * 86400)
-    resolves = m.get('resolves', f\"{m['duration_days']} days\")
-    print(f\"{m['id']}|{m['category']}|{m['question']}|{m['image_url']}|{secs}|{resolves}\")
+    secs = m.get('duration_secs')
+    if secs is None:
+        days = m.get('days')
+        if days is None:
+            raise SystemExit('Market {}: missing duration_secs and days'.format(m.get('id', '?')))
+        secs = days * 86400
+    resolves = m.get('resolves')
+    if resolves is None:
+        days = m.get('days')
+        if days is None:
+            days = secs // 86400
+        resolves = str(days) + ' days'
+    rows.append((m['id'], m['category'], m['question'], m['image_url'], secs, resolves))
+for row in rows:
+    print('|'.join(str(value) for value in row))
 " | while IFS='|' read -r IDX CATEGORY QUESTION IMAGE_URL DURATION_SECS RESOLVES; do
 
   info "Creating market $IDX: ${QUESTION:0:60}..."
