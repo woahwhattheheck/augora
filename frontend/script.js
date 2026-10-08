@@ -1,6 +1,7 @@
 import { placeBet, reducePosition, checkTransactionStatus } from "./soroban.js";
 
-const HORIZON_URL = "https://horizon.stellar.org";
+const NETWORK_NAME = "Stellar Testnet";
+const HORIZON_URL = "https://horizon-testnet.stellar.org";
 const COINGECKO_URL = "https://api.coingecko.com/api/v3";
 const POSITION_STORAGE_KEY = "stellartrade:session-positions";
 const TESTNET_EXPLORER_PREFIX = "https://stellar.expert/explorer/testnet/tx/";
@@ -77,20 +78,30 @@ async function updateNetwork() {
     $("#operation-count").textContent = formatNumber(ledger.operation_count);
     $("#network-state").textContent = "Live";
     $("#network-state").classList.add("online");
-    $("#connection-label").textContent = "Live on Stellar mainnet";
+    $("#connection-label").textContent = `Live on ${NETWORK_NAME}`;
     setUpdated();
   } catch (error) {
     $("#network-state").textContent = "Unavailable";
-    $("#connection-label").textContent = "Public data temporarily unavailable";
+    $("#connection-label").textContent = `${NETWORK_NAME} data temporarily unavailable`;
     console.warn("Stellar network data could not be loaded", error);
   }
 }
 
 function renderChart(prices) {
-  const values = prices.map((point) => point[1]);
-  const min = Math.min(...values), max = Math.max(...values), spread = max - min || 1;
+  const values = Array.isArray(prices) ? prices.map((point) => point?.[1]) : [];
+  if (!values.length || values.some((value) => !Number.isFinite(value))) {
+    $("#price-chart").innerHTML = '<span class="chart-loading">Price history temporarily unavailable</span>';
+    $("#price-range").textContent = "Unavailable";
+    return;
+  }
+  const min = Math.min(...values), max = Math.max(...values);
   const width = 500, height = 126, pad = 5;
-  const points = values.map((value, index) => `${(index / (values.length - 1)) * width},${pad + (1 - (value - min) / spread) * (height - pad * 2)}`).join(" ");
+  // Repeat a lone observation to draw a horizontal line without dividing by zero.
+  const plottedValues = values.length === 1 ? [values[0], values[0]] : values;
+  const points = plottedValues.map((value, index) => {
+    const ratio = max === min ? 0.5 : (value - min) / (max - min);
+    return `${(index / (plottedValues.length - 1)) * width},${pad + (1 - ratio) * (height - pad * 2)}`;
+  }).join(" ");
   const area = `0,${height} ${points} ${width},${height}`;
   $("#price-chart").innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Seven day XLM price movement"><defs><linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7df7bd" stop-opacity=".24"/><stop offset="1" stop-color="#7df7bd" stop-opacity="0"/></linearGradient></defs><polyline class="area" points="${area}"/><polyline points="${points}" vector-effect="non-scaling-stroke"/></svg>`;
   $("#price-range").textContent = `${formatPrice(min)} – ${formatPrice(max)}`;
@@ -310,7 +321,11 @@ document.querySelectorAll("[data-amount]").forEach((button) => button.addEventLi
 
 $("#order-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const stake = Math.max(1, Math.min(1000, Number($("#stake-amount").value) || 1));
+  const stake = Number($("#stake-amount").value);
+  if (!Number.isFinite(stake) || stake < 1 || stake > 1000) {
+    window.showWalletNotice("Stake must be between 1 and 1000 XLM. Please correct the amount before submitting.", true);
+    return;
+  }
   const market = currentMarket();
   if (market.onchainId && !market.acceptingPositions) {
     window.showWalletNotice("This Testnet market passed its published close date. Buys and sells are unavailable.", true);
@@ -509,6 +524,7 @@ window.matchMedia("(min-width: 681px)").addEventListener("change", (event) => {
   if (event.matches) setMenuOpen(false);
 });
 
+document.querySelectorAll("[data-network-name]").forEach((label) => { label.textContent = NETWORK_NAME; });
 $("#year").textContent = new Date().getFullYear();
 renderMarkets();
 selectMarket(0, false);

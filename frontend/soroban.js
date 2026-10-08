@@ -103,7 +103,7 @@ export async function placeBet({ address, marketId, isYes, amountXlm, signTransa
 
   const amount = xlmToStroops(amountXlm);
   const sdk = await loadSdk();
-  const { BASE_FEE, Contract, Networks, TransactionBuilder, nativeToScVal, rpc } = sdk;
+  const { BASE_FEE, Contract, TransactionBuilder, nativeToScVal, rpc } = sdk;
   const server = new rpc.Server(TESTNET.rpcUrl);
 
   onStatus?.("Loading Testnet account");
@@ -111,7 +111,7 @@ export async function placeBet({ address, marketId, isYes, amountXlm, signTransa
   const contract = new Contract(TESTNET.predictionMarketContract);
   const transaction = new TransactionBuilder(source, {
     fee: BASE_FEE,
-    networkPassphrase: Networks.TESTNET,
+    networkPassphrase: TESTNET.networkPassphrase,
   })
     .addOperation(contract.call(
       "place_bet",
@@ -138,7 +138,7 @@ export async function placeBet({ address, marketId, isYes, amountXlm, signTransa
   });
   if (!signed?.signedTxXdr) throw new Error(signed?.error?.message || "Transaction signing was cancelled.");
 
-  const signedTransaction = TransactionBuilder.fromXDR(signed.signedTxXdr, Networks.TESTNET);
+  const signedTransaction = TransactionBuilder.fromXDR(signed.signedTxXdr, TESTNET.networkPassphrase);
   onStatus?.("Submitting to Testnet");
   const submission = await server.sendTransaction(signedTransaction);
   if (submission.status !== "PENDING") {
@@ -172,14 +172,14 @@ export async function reducePosition({ address, marketId, amountXlm, signTransac
 
   const amount = xlmToStroops(amountXlm);
   const sdk = await loadSdk();
-  const { BASE_FEE, Contract, Networks, TransactionBuilder, nativeToScVal, rpc } = sdk;
+  const { BASE_FEE, Contract, TransactionBuilder, nativeToScVal, rpc } = sdk;
   const server = new rpc.Server(TESTNET.rpcUrl);
   onStatus?.("Loading Testnet account");
   const source = await server.getAccount(address);
   const contract = new Contract(TESTNET.predictionMarketContract);
   const transaction = new TransactionBuilder(source, {
     fee: BASE_FEE,
-    networkPassphrase: Networks.TESTNET,
+    networkPassphrase: TESTNET.networkPassphrase,
   })
     .addOperation(contract.call(
       "reduce_position",
@@ -205,7 +205,7 @@ export async function reducePosition({ address, marketId, amountXlm, signTransac
   });
   if (!signed?.signedTxXdr) throw new Error(signed?.error?.message || "Wallet signing was cancelled.");
 
-  const signedTransaction = TransactionBuilder.fromXDR(signed.signedTxXdr, Networks.TESTNET);
+  const signedTransaction = TransactionBuilder.fromXDR(signed.signedTxXdr, TESTNET.networkPassphrase);
   onStatus?.("Submitting sell to Testnet");
   const submission = await server.sendTransaction(signedTransaction);
   if (submission.status !== "PENDING") {
